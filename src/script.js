@@ -1,5 +1,3 @@
-const API_KEY = "YOUR_API_KEY";
-
 const cityInput = document.getElementById("city-input");
 const searchBtn = document.getElementById("search-btn");
 const messageText = document.getElementById("message");
@@ -10,8 +8,39 @@ const description = document.getElementById("description");
 const humidity = document.getElementById("humidity");
 const wind = document.getElementById("wind");
 
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
+const weatherCodes = {
+  0: "Clear sky",
+  1: "Mainly clear",
+  2: "Partly cloudy",
+  3: "Overcast",
+  45: "Fog",
+  48: "Freezing fog",
+  51: "Light drizzle",
+  53: "Moderate drizzle",
+  55: "Dense drizzle",
+  56: "Light freezing drizzle",
+  57: "Dense freezing drizzle",
+  61: "Slight rain",
+  63: "Moderate rain",
+  65: "Heavy rain",
+  66: "Light freezing rain",
+  67: "Heavy freezing rain",
+  71: "Slight snow",
+  73: "Moderate snow",
+  75: "Heavy snow",
+  77: "Snow grains",
+  80: "Slight rain showers",
+  81: "Moderate rain showers",
+  82: "Violent rain showers",
+  85: "Slight snow showers",
+  86: "Heavy snow showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm with slight hail",
+  99: "Thunderstorm with heavy hail"
+};
+
+function getDescription(code) {
+  return weatherCodes[code] || "Unknown";
 }
 
 function showError(text) {
@@ -19,12 +48,17 @@ function showError(text) {
   messageText.textContent = text;
 }
 
-function showWeather(data) {
-  cityName.textContent = data.name + ", " + data.sys.country;
-  temperature.textContent = Math.round(data.main.temp) + " °C";
-  description.textContent = capitalize(data.weather[0].description);
-  humidity.textContent = data.main.humidity + "%";
-  wind.textContent = data.wind.speed + " m/s";
+function showWeather(place, current) {
+  let name = place.name;
+  if (place.country) {
+    name = name + ", " + place.country;
+  }
+
+  cityName.textContent = name;
+  temperature.textContent = Math.round(current.temperature_2m) + " °C";
+  description.textContent = getDescription(current.weather_code);
+  humidity.textContent = current.relative_humidity_2m + "%";
+  wind.textContent = current.wind_speed_10m + " km/h";
 
   messageText.textContent = "";
   weatherBox.hidden = false;
@@ -38,37 +72,42 @@ async function getWeather() {
     return;
   }
 
-  if (API_KEY === "YOUR_API_KEY") {
-    showError("Add your API key in script.js first.");
-    return;
-  }
-
   weatherBox.hidden = true;
   messageText.textContent = "Loading...";
 
-  const url = "https://api.openweathermap.org/data/2.5/weather?q=" +
-    encodeURIComponent(city) + "&units=metric&appid=" + API_KEY;
+  const geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" +
+    encodeURIComponent(city) + "&count=1&language=en&format=json";
 
   try {
-    const response = await fetch(url);
+    const geoResponse = await fetch(geoUrl);
 
-    if (response.status === 404) {
-      showError("City not found.");
-      return;
-    }
-
-    if (response.status === 401) {
-      showError("Invalid API key. A new key may need a little time to activate.");
-      return;
-    }
-
-    if (!response.ok) {
+    if (!geoResponse.ok) {
       showError("Something went wrong. Please try again.");
       return;
     }
 
-    const data = await response.json();
-    showWeather(data);
+    const geoData = await geoResponse.json();
+
+    if (!geoData.results || geoData.results.length === 0) {
+      showError("City not found.");
+      return;
+    }
+
+    const place = geoData.results[0];
+
+    const weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" +
+      place.latitude + "&longitude=" + place.longitude +
+      "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto";
+
+    const weatherResponse = await fetch(weatherUrl);
+
+    if (!weatherResponse.ok) {
+      showError("Something went wrong. Please try again.");
+      return;
+    }
+
+    const weatherData = await weatherResponse.json();
+    showWeather(place, weatherData.current);
   } catch (error) {
     showError("Could not connect. Check your internet connection.");
   }

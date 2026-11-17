@@ -81,3 +81,13 @@ button:hover {
 .details li {
   padding: 4px 0;
 }
+
+.credit {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.credit a {
+  color: #000000;
+}
